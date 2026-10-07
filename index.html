@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Equipamentos de Emergência — IP VIDAS</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --verde:#07583C; --verde-2:#0A6B4A; --lima:#B3DD64; --lima-suave:#EAF5D6; --ambar:#FDB952; --vermelho:#DF4636;
+  --fundo:#F2F5F0; --papel:#FFFFFF; --tinta:#1C2B22; --muted:#5D6F64; --linha:#D5E3CC;
+  --erro:#B42318; --erro-bg:#FCE8E6; --aviso:#9A6B00; --aviso-bg:#FFF4DB; --cinza-bg:#EEF1EE;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Barlow',system-ui,-apple-system,'Segoe UI',Arial,sans-serif;background:var(--fundo);color:var(--tinta);font-size:15px;line-height:1.5}
+button,select,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--lima);outline-offset:2px}
+.hidden{display:none !important}
+
+header.topo{background:var(--verde);color:#fff;border-bottom:4px solid var(--lima)}
+.topo-inner{max-width:1240px;margin:0 auto;padding:16px 24px;display:flex;gap:20px;align-items:flex-end;flex-wrap:wrap}
+.topo h1{margin:0;font-size:22px;line-height:1.2}
+.topo .sub{color:var(--lima);font-size:14px;font-weight:500}
+.topo .filtros{margin-left:auto;display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
+.topo label{display:block;font-size:12px;color:#CFE6D6;margin-bottom:2px}
+.topo select{background:#0B6546;border:1px solid #2F7F60;color:#fff;border-radius:6px;padding:7px 10px;min-width:140px}
+.usuario-topo{font-size:13px;color:#CFE6D6;align-self:center}
+.usuario-topo b{color:#fff}
+.usuario-topo button{background:none;border:1px solid #2F7F60;color:#fff;border-radius:6px;padding:2px 10px;margin-left:8px;cursor:pointer;font-size:12px}
+
+main{max-width:1240px;margin:0 auto;padding:20px 24px 60px}
+.abas{display:flex;gap:4px;border-bottom:1px solid var(--linha);margin-bottom:18px;flex-wrap:wrap}
+.aba{padding:8px 14px;border:none;background:none;cursor:pointer;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1px}
+.aba.ativa{color:var(--verde);border-bottom-color:var(--verde)}
+
+.regua{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:4px;margin-bottom:20px;overflow-x:auto}
+.mes{background:var(--papel);border:1px solid var(--linha);border-radius:6px;padding:8px 6px 10px;cursor:pointer;text-align:center;min-width:64px}
+.mes:hover{border-color:var(--verde)}
+.mes .nome{font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;color:var(--verde)}
+.mes .ano{font-size:11px;color:var(--muted);line-height:1}
+.mes .conta{font-size:12px;font-weight:600;margin-top:4px}
+.mes.atual{box-shadow:inset 0 -3px 0 var(--lima)}
+.mes.sel{background:var(--verde);border-color:var(--verde);color:#fff}
+.mes.sel .nome{color:var(--lima)} .mes.sel .ano{color:#CFE6D6}
+
+.barra{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.barra h2{margin:0;font-size:20px}
+.barra .resumo{color:var(--muted);font-size:14px}
+.barra .dir{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:6px;border:1px solid transparent;cursor:pointer;font-weight:600;background:none}
+.btn-primario{background:var(--verde);color:#fff}
+.btn-primario:hover{background:var(--verde-2)}
+.btn-primario:disabled{background:#8FA99A;cursor:not-allowed}
+.btn-sec{background:#fff;color:var(--verde);border-color:var(--linha)}
+.btn-sec:hover{border-color:var(--verde)}
+.btn-link{color:var(--verde);padding:4px 6px;font-size:13px}
+.btn-link:hover{text-decoration:underline}
+.btn-link.perigo{color:var(--erro)}
+
+.grupo-ger{margin-bottom:18px}
+.grupo-ger h3{margin:0 0 8px;font-size:15px;color:var(--muted);font-weight:700}
+.lista{display:flex;flex-direction:column;gap:8px}
+.item{background:var(--papel);border:1px solid var(--linha);border-left:5px solid var(--ambar);border-radius:6px;padding:11px 16px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 16px;align-items:center}
+.item.ok{border-left-color:var(--verde)} .item.nok{border-left-color:var(--vermelho)} .item.atras{border-left-color:var(--vermelho)}
+.item h4{margin:0;font-size:15px}
+.item .meta{font-size:13px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
+.item .res{font-weight:700;white-space:nowrap;text-align:right}
+.item .res small{display:block;font-weight:500;font-size:12px;color:var(--muted)}
+.res.ok{color:var(--verde)} .res.nok{color:var(--erro)} .res.pend{color:var(--aviso)}
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--lima-suave);color:var(--verde)}
+
+.tabela{overflow-x:auto;border:1px solid var(--linha);border-radius:6px;background:#fff}
+.tabela table{border-collapse:collapse;width:100%;font-size:13px}
+.tabela th,.tabela td{padding:7px 9px;border-bottom:1px solid var(--cinza-bg);text-align:center;white-space:nowrap}
+.tabela th:first-child,.tabela td:first-child{text-align:left;white-space:normal;min-width:220px}
+.tabela thead th{background:var(--lima-suave);color:var(--verde);font-weight:700}
+.tabela tr.ger td{background:var(--fundo);font-weight:700}
+.tabela td.v-ok{color:var(--verde);font-weight:700} .tabela td.v-nok{color:var(--erro);font-weight:700;background:var(--erro-bg)} .tabela td.v-zero{color:#AEB9B2}
+.tabela tr.inativo td{opacity:.5}
+
+.vazio{background:var(--papel);border:1px dashed var(--linha);border-radius:6px;padding:28px;text-align:center;color:var(--muted)}
+.carregando{color:var(--muted);padding:18px 0}
+.legenda{font-size:13px;color:var(--muted);margin:0 0 12px;max-width:820px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--tinta);color:#fff;padding:10px 18px;border-radius:6px;z-index:80;font-size:14px}
+.toast.erro{background:var(--erro)}
+
+.fundo-modal{position:fixed;inset:0;background:rgba(12,30,20,.55);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
+.modal{background:#fff;border-radius:10px;max-width:620px;width:100%;padding:22px 24px}
+.modal h3{margin:0 0 4px;color:var(--verde);font-size:19px}
+.modal .desc{margin:0 0 16px;color:var(--muted);font-size:14px}
+.campo{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
+.campo label{font-size:13px;font-weight:600;color:var(--muted)}
+.campo input,.campo select,.campo textarea{padding:9px 11px;border:1px solid var(--linha);border-radius:6px;background:#fff;width:100%}
+.campo textarea{min-height:60px;resize:vertical}
+.campo .ajuda{font-size:12px;color:var(--muted)}
+.linha2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.linha3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media (max-width:560px){.linha2,.linha3{grid-template-columns:1fr}}
+.calc{background:var(--fundo);border-radius:6px;padding:8px 12px;font-size:14px;margin:-4px 0 14px}
+.info-reg{background:var(--fundo);border-radius:6px;padding:8px 12px;font-size:13px;color:var(--muted);margin-bottom:14px}
+.modal .rodape{display:flex;justify-content:flex-end;gap:8px;margin-top:6px;flex-wrap:wrap}
+.erro-form{color:var(--erro);font-size:13px;margin:-4px 0 10px}
+</style>
+</head>
+<body>
+
+<header class="topo">
+  <div class="topo-inner">
+    <div>
+      <h1>Equipamentos de Emergência</h1>
+      <div class="sub">Cadastro por local e avaliação periódica para o IP</div>
+    </div>
+    <div class="filtros">
+      <div><label for="f-safra">Safra</label><select id="f-safra"></select></div>
+      <div><label for="f-unid">Unidade</label><select id="f-unid"></select></div>
+      <div class="usuario-topo" id="usuario-topo" hidden></div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="abas" role="tablist">
+    <button class="aba ativa" data-aba="aval" role="tab">Avaliações do mês</button>
+    <button class="aba" data-aba="cad" role="tab">Cadastro de locais</button>
+    <button class="aba" data-aba="safra" role="tab">Visão da safra</button>
+  </div>
+
+  <section id="aba-aval">
+    <div class="regua" id="regua"></div>
+    <div class="barra">
+      <h2 id="titulo-mes"></h2>
+      <span class="resumo" id="resumo-mes"></span>
+    </div>
+    <div id="lista-aval"><div class="carregando">Carregando...</div></div>
+  </section>
+
+  <section id="aba-cad" class="hidden">
+    <div class="barra">
+      <span class="resumo" id="resumo-cad"></span>
+      <div class="dir">
+        <button class="btn btn-primario" onclick="abrirLocal()">Novo local / equipamento</button>
+        <button class="btn btn-sec" onclick="exportarCadastro()">Exportar (Excel)</button>
+      </div>
+    </div>
+    <div class="tabela" id="tabela-cad"></div>
+  </section>
+
+  <section id="aba-safra" class="hidden">
+    <p class="legenda">É assim que o Hub grava no IP. Cada célula mostra <b>operacionais ou com OM aberta de equipamentos com avaliação vencendo no mês</b>. "—" = nada vence no mês (0 de 0). Monitoramento de câmera não entra no IP.</p>
+    <div class="tabela" id="tabela-safra"></div>
+  </section>
+</main>
+
+<div id="modal-raiz"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// Conexão (mesmo projeto e sessão do portal)
+// ─────────────────────────────────────────────────────────────
+const SB_URL = 'https://umpctnchhmyvpjwxllaj.supabase.co';
+const SB_KEY = 'sb_publishable_lxiF04jATB1HMLINX-FvOg_3JOjXxrQ';
+const sb = supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, storageKey: 'sistema-ip-auth' } });
+const PORTAL_URL = 'https://tkichelewski-web.github.io/portal-ip/';
+const NOME_IND = '100% dos equipamentos de emergência operacionais ou com ordem de manutenção aberta';
+
+// Tipos de equipamento e periodicidade (monitoramento de câmera fica fora do IP)
+const TIPOS = [
+  { tipo: 'ALARME DE INCÊNDIO', aval: 'TESTE', freq: 'MENSAL' },
+  { tipo: 'CHUVEIRO DE EMERGÊNCIA', aval: 'TESTE', freq: 'MENSAL' },
+  { tipo: 'ABERTURA FINAL DE LINHA', aval: 'TESTE', freq: 'MENSAL' },
+  { tipo: 'BOMBA', aval: 'TESTE', freq: 'MENSAL' },
+  { tipo: 'BOMBA (2 DIESEL/1 ELÉTRICA)', aval: 'TESTE', freq: 'MENSAL' },
+  { tipo: 'CANHÃO', aval: 'INSPEÇÃO', freq: 'MENSAL' },
+  { tipo: 'CAIXA ABRIGO MANGUEIRA', aval: 'INSPEÇÃO', freq: 'SEMESTRAL' },
+  { tipo: 'MANGUEIRA', aval: 'TESTE', freq: 'ANUAL' },
+  { tipo: 'LGE', aval: 'TESTE', freq: 'ANUAL' }
+];
+const MESES_SAFRA = [['04','Abr'],['05','Mai'],['06','Jun'],['07','Jul'],['08','Ago'],['09','Set'],['10','Out'],['11','Nov'],['12','Dez'],['01','Jan'],['02','Fev'],['03','Mar']];
+const NOMES_MES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+let safras = [], unidades = [], gerencias = [], gersInd = new Set(), locais = [], avaliacoes = [];
+let usuarioAtual = null, mesSel = null;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+const hojeISO = () => new Date().toISOString().slice(0, 10);
+const hojeMes = () => hojeISO().slice(0, 7);
+const fmtData = d => d ? d.slice(0, 10).split('-').reverse().join('/') : '';
+const nomeMesLongo = ym => NOMES_MES[Number(ym.slice(5, 7)) - 1] + ' de ' + ym.slice(0, 4);
+const nomeMesCurto = ym => MESES_SAFRA.find(m => m[0] === ym.slice(5, 7))[1] + '/' + ym.slice(2, 4);
+const safraAtual = () => safras.find(s => s.id === Number($('f-safra').value));
+const quem = () => ({ nome: usuarioAtual?.nome || null, email: usuarioAtual?.email || null });
+const agoraISO = () => new Date().toISOString();
+const gerPorId = id => gerencias.find(g => g.id === id);
+const lsGet = k => { try { return localStorage.getItem(k); } catch (_) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} };
+function mesesDaSafra(s) {
+  if (!s) return [];
+  return MESES_SAFRA.map(([n, abr]) => ({ ym: (Number(n) >= 4 ? s.ano_ini : s.ano_fim) + '-' + n, abr, ano: Number(n) >= 4 ? s.ano_ini : s.ano_fim }));
+}
+function toast(msg, erro) {
+  const t = document.createElement('div'); t.className = 'toast' + (erro ? ' erro' : ''); t.textContent = msg;
+  document.body.appendChild(t); setTimeout(() => t.remove(), erro ? 6000 : 2600);
+}
+
+// Mesma regra da visão emerg_ip no banco
+const nMes = ym => Number(ym.slice(0, 4)) * 12 + Number(ym.slice(5, 7));
+function vence(l, ym) {
+  if (!l.ativo || ym < l.inicio_mes) return false;
+  const dif = nMes(ym) - nMes(l.inicio_mes);
+  return l.frequencia === 'MENSAL' || (l.frequencia === 'SEMESTRAL' && dif % 6 === 0) || (l.frequencia === 'ANUAL' && dif % 12 === 0);
+}
+function proximoVencimento(l, aPartirDe) {
+  for (let i = 0; i < 24; i++) {
+    const t = nMes(aPartirDe) + i, ym = Math.floor((t - 1) / 12) + '-' + String((t - 1) % 12 + 1).padStart(2, '0');
+    if (vence(l, ym)) return ym;
+  }
+  return null;
+}
+const avalDe = (l, ym) => avaliacoes.find(a => a.local_id === l.id && a.mes === ym);
+const contaIP = (l, a) => a ? Math.min(a.qtd_operacional + a.qtd_om, l.quantidade) : 0;
+
+// ─────────────────────────────────────────────────────────────
+// Login (pelo portal)
+// ─────────────────────────────────────────────────────────────
+async function exigirLogin() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { location.replace(PORTAL_URL + '?voltar=' + encodeURIComponent(location.href.split('#')[0])); return false; }
+  const u = session.user;
+  const { data } = await sb.from('usuarios').select('nome').eq('auth_id', u.id).maybeSingle();
+  usuarioAtual = { nome: (data && data.nome) || u.email, email: (u.email || '').toLowerCase() };
+  const box = $('usuario-topo');
+  box.innerHTML = 'Conectado como <b></b><button type="button">Sair</button>';
+  box.querySelector('b').textContent = usuarioAtual.nome;
+  box.querySelector('button').onclick = async () => { await sb.auth.signOut(); location.href = PORTAL_URL; };
+  box.hidden = false;
+  return true;
+}
+
+async function init() {
+  if (!(await exigirLogin())) return;
+  const [rs, ru, rg, ri] = await Promise.all([
+    sb.from('safras').select('id,nome,ano_ini,ano_fim').eq('ativa', true).order('ano_ini', { ascending: false }),
+    sb.from('unidades').select('id,nome').order('nome'),
+    sb.from('gerencias').select('id,nome,unidade_id,unidades(nome)').eq('ativo', true).order('nome'),
+    sb.from('indicadores').select('id,nome').eq('ativo', true)
+  ]);
+  const err = rs.error || ru.error || rg.error || ri.error;
+  if (err) { $('lista-aval').innerHTML = `<div class="vazio">Não consegui ler o Supabase: ${esc(err.message)}</div>`; return; }
+  safras = rs.data || []; unidades = ru.data || []; gerencias = rg.data || [];
+  const ind = (ri.data || []).find(i => norm(i.nome) === norm(NOME_IND));
+  if (ind) {
+    let rc = await sb.from('ind_gerencia_safra').select('gerencia_id').eq('ativo', true).eq('indicador_id', ind.id).eq('safra_id', safras[0]?.id || 0);
+    if (!rc.error && !(rc.data || []).length) rc = await sb.from('ind_gerencia_safra').select('gerencia_id').eq('ativo', true).eq('indicador_id', ind.id);
+    gersInd = new Set((rc.data || []).map(c => c.gerencia_id));
+  }
+  $('f-safra').innerHTML = safras.map(s => `<option value="${s.id}">${esc(s.nome)}</option>`).join('');
+  $('f-unid').innerHTML = '<option value="">Todas</option>' + unidades.map(u => `<option value="${u.id}">${esc(u.nome)}</option>`).join('');
+  if (lsGet('emg-unid') && unidades.some(u => String(u.id) === lsGet('emg-unid'))) $('f-unid').value = lsGet('emg-unid');
+  $('f-safra').onchange = () => { mesSel = null; renderTudo(); };
+  $('f-unid').onchange = () => { lsSet('emg-unid', $('f-unid').value); renderTudo(); };
+  document.querySelectorAll('.aba').forEach(b => b.onclick = () => {
+    document.querySelectorAll('.aba').forEach(x => x.classList.toggle('ativa', x === b));
+    ['aval', 'cad', 'safra'].forEach(k => $('aba-' + k).classList.toggle('hidden', b.dataset.aba !== k));
+    renderTudo();
+  });
+  carregar();
+}
+
+async function carregar() {
+  const [rl, ra] = await Promise.all([
+    sb.from('emerg_locais').select('*').order('local'),
+    sb.from('emerg_avaliacoes').select('*')
+  ]);
+  const err = rl.error || ra.error;
+  if (err) { $('lista-aval').innerHTML = `<div class="vazio">Erro: ${esc(err.message)}${String(err.message).includes('emerg_') ? '<br>Rode antes o SQL de criação das tabelas.' : ''}</div>`; return; }
+  locais = rl.data || []; avaliacoes = ra.data || [];
+  renderTudo();
+}
+
+function locaisVisiveis(incluiInativos) {
+  const u = Number($('f-unid').value);
+  return locais.filter(l => {
+    if (!incluiInativos && !l.ativo) return false;
+    if (!u) return true;
+    const g = gerPorId(l.gerencia_id); if (!g) return false;
+    const nomeU = norm(unidades.find(x => x.id === u)?.nome);
+    return g.unidade_id === u || norm(g.unidades?.nome).split('/').includes(nomeU);
+  });
+}
+const nomeGer = g => g ? g.nome + (g.unidades?.nome && !norm(g.nome).endsWith(norm(g.unidades.nome)) ? ' — ' + g.unidades.nome : '') : '';
+
+function renderTudo() {
+  const s = safraAtual(); if (!s) return;
+  if (!mesSel) { const ms = mesesDaSafra(s).map(m => m.ym); mesSel = ms.includes(hojeMes()) ? hojeMes() : ms[0]; }
+  if (!$('aba-aval').classList.contains('hidden')) { renderRegua(); renderAval(); }
+  if (!$('aba-cad').classList.contains('hidden')) renderCadastro();
+  if (!$('aba-safra').classList.contains('hidden')) renderSafra();
+}
+
+// ─────────────────────────────────────────────────────────────
+// Aba: avaliações do mês
+// ─────────────────────────────────────────────────────────────
+function renderRegua() {
+  const vis = locaisVisiveis();
+  $('regua').innerHTML = mesesDaSafra(safraAtual()).map(m => {
+    const venc = vis.filter(l => vence(l, m.ym));
+    const feitos = venc.filter(l => avalDe(l, m.ym)).length;
+    const txt = venc.length ? `${feitos}/${venc.length}` : '—';
+    return `<div class="mes ${m.ym === mesSel ? 'sel' : ''} ${m.ym === hojeMes() ? 'atual' : ''}" tabindex="0" role="button"
+      onclick="selMes('${m.ym}')" onkeydown="if(event.key==='Enter')selMes('${m.ym}')" aria-label="${nomeMesLongo(m.ym)}: ${txt} avaliados">
+      <div class="nome">${m.abr}</div><div class="ano">${m.ano}</div><div class="conta">${txt}</div></div>`;
+  }).join('');
+}
+function selMes(ym) { mesSel = ym; renderRegua(); renderAval(); }
+
+function renderAval() {
+  $('titulo-mes').textContent = nomeMesLongo(mesSel);
+  const venc = locaisVisiveis().filter(l => vence(l, mesSel));
+  if (!locais.length) { $('resumo-mes').textContent = ''; $('lista-aval').innerHTML = '<div class="vazio">Nenhum local cadastrado ainda. Comece pela aba <b>Cadastro de locais</b>.</div>'; return; }
+  if (!venc.length) { $('resumo-mes').textContent = ''; $('lista-aval').innerHTML = `<div class="vazio">Nenhuma avaliação vence em ${nomeMesLongo(mesSel).toLowerCase()}.</div>`; return; }
+  const feitos = venc.filter(l => avalDe(l, mesSel));
+  const prev = venc.reduce((t, l) => t + l.quantidade, 0), real = venc.reduce((t, l) => t + contaIP(l, avalDe(l, mesSel)), 0);
+  $('resumo-mes').textContent = `${feitos.length} de ${venc.length} avaliações registradas · ${real} de ${prev} equipamentos contam no IP`;
+  const porGer = {};
+  venc.forEach(l => (porGer[l.gerencia_id] = porGer[l.gerencia_id] || []).push(l));
+  $('lista-aval').innerHTML = Object.keys(porGer).map(Number).sort((a, b) => nomeGer(gerPorId(a)).localeCompare(nomeGer(gerPorId(b)))).map(gid =>
+    `<div class="grupo-ger"><h3>${esc(nomeGer(gerPorId(gid)) || 'Gerência ' + gid)}</h3><div class="lista">` +
+    porGer[gid].sort((a, b) => a.local.localeCompare(b.local) || a.tipo.localeCompare(b.tipo)).map(l => {
+      const a = avalDe(l, mesSel);
+      let cls = '', res = '';
+      if (a) {
+        const c = contaIP(l, a), semOm = a.qtd_avaliada - a.qtd_operacional - a.qtd_om, naoAval = l.quantidade - a.qtd_avaliada;
+        cls = c >= l.quantidade ? 'ok' : 'nok';
+        const det = [semOm > 0 ? semOm + ' sem OM' : '', naoAval > 0 ? naoAval + ' não avaliado(s)' : '', a.qtd_om ? a.qtd_om + ' com OM' : ''].filter(Boolean).join(' · ');
+        res = `<span class="res ${cls}">${c} de ${l.quantidade}<small>${esc(det || 'todos operacionais')}</small></span>`;
+      } else {
+        const atras = mesSel < hojeMes();
+        cls = atras ? 'atras' : '';
+        res = `<span class="res ${atras ? 'nok' : 'pend'}">${atras ? 'Não avaliado' : 'A avaliar'}<small>${l.quantidade} equipamento(s)</small></span>`;
+      }
+      const meta = [`<span class="tag">${esc(l.frequencia.toLowerCase())}</span>`, esc(l.avaliacao || '')];
+      if (a) meta.push('Avaliado em ' + fmtData(a.data_avaliacao) + (a.registrado_por ? ' por ' + esc(a.registrado_por) : ''));
+      if (a && a.evidencia_url) meta.push(`<a class="btn-link" href="${esc(a.evidencia_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Evidência</a>`);
+      return `<article class="item ${cls}" style="cursor:pointer" onclick="abrirAvaliacao(${l.id})">
+        <div><h4>${esc(l.local)} — ${esc(l.tipo)}</h4><div class="meta">${meta.join('')}</div></div>${res}</article>`;
+    }).join('') + '</div></div>').join('');
+}
+
+function abrirAvaliacao(localId) {
+  const l = locais.find(x => x.id === localId); if (!l) return;
+  const a = avalDe(l, mesSel);
+  const meses = mesesDaSafra(safraAtual());
+  const info = [];
+  if (a?.registrado_por) info.push(`Registrado por <b>${esc(a.registrado_por)}</b> em ${fmtData(a.registrado_em)}`);
+  if (a?.atualizado_por && a.atualizado_por !== a.registrado_por) info.push(`Alterado por ${esc(a.atualizado_por)} em ${fmtData(a.atualizado_em)}`);
+  abrirModal(`
+    <h3>${a ? 'Avaliação registrada' : 'Registrar avaliação'}</h3>
+    <p class="desc">${esc(l.local)} — ${esc(l.tipo)} (${esc(l.avaliacao || '')}, ${l.frequencia.toLowerCase()})<br>${esc(nomeGer(gerPorId(l.gerencia_id)))} · vencimento: ${nomeMesLongo(mesSel)} · ${l.quantidade} equipamento(s) cadastrado(s)</p>
+    ${info.length ? `<div class="info-reg">${info.join('<br>')}</div>` : ''}
+    <div class="linha2">
+      <div class="campo"><label for="a-data">Data da avaliação</label><input type="date" id="a-data" max="${hojeISO()}" min="${meses[0].ym}-01" value="${a?.data_avaliacao || (mesSel === hojeMes() ? hojeISO() : '')}"></div>
+      <div class="campo"><label for="a-aval">Quantos foram avaliados</label><input type="number" min="0" max="${l.quantidade}" id="a-aval" value="${a?.qtd_avaliada ?? l.quantidade}"></div>
+    </div>
+    <div class="linha3">
+      <div class="campo"><label for="a-op">Operacionais</label><input type="number" min="0" id="a-op" value="${a?.qtd_operacional ?? ''}"></div>
+      <div class="campo"><label for="a-om">Não operacionais com OM aberta</label><input type="number" min="0" id="a-om" value="${a?.qtd_om ?? 0}"></div>
+      <div class="campo"><label>Não operacionais sem OM</label><input type="text" id="a-semom" disabled></div>
+    </div>
+    <div class="campo" id="campo-om"><label for="a-noms">Número(s) da(s) OM</label><input id="a-noms" value="${esc(a?.numeros_om || '')}" placeholder="Ex.: 452311, 452318"></div>
+    <div class="calc" id="a-calc"></div>
+    <div class="campo"><label for="a-evid">Link da evidência no SharePoint</label><input type="url" id="a-evid" value="${esc(a?.evidencia_url || '')}" placeholder="https://suaempresa.sharepoint.com/..."></div>
+    <div class="campo"><label for="a-obs">Observações</label><textarea id="a-obs">${esc(a?.observacoes || '')}</textarea></div>
+    <div id="m-erro" class="erro-form"></div>
+    <div class="rodape">
+      ${a ? '<button class="btn btn-link perigo" id="a-excluir" style="margin-right:auto">Excluir avaliação</button>' : ''}
+      <button class="btn btn-sec" onclick="fecharModal()">Voltar</button>
+      <button class="btn btn-primario" id="a-salvar">${a ? 'Salvar alterações' : 'Registrar'}</button>
+    </div>`);
+  const calc = () => {
+    const av = Number($('a-aval').value) || 0, op = Number($('a-op').value) || 0, om = Number($('a-om').value) || 0;
+    const sem = av - op - om;
+    $('a-semom').value = sem >= 0 ? sem : '—';
+    $('campo-om').style.display = om > 0 ? '' : 'none';
+    const c = Math.min(op + om, l.quantidade);
+    $('a-calc').innerHTML = `Conta no IP: <b>${c} de ${l.quantidade}</b>` + (l.quantidade - av > 0 ? ` · ${l.quantidade - av} não avaliado(s) contam como não realizados` : '') + (sem > 0 ? ` · ${sem} sem OM não contam` : '');
+  };
+  ['a-aval', 'a-op', 'a-om'].forEach(k => $(k).oninput = calc); calc();
+  $('a-salvar').onclick = async () => {
+    const d = $('a-data').value, av = Number($('a-aval').value), op = Number($('a-op').value), om = Number($('a-om').value) || 0;
+    const erro = t => { $('m-erro').textContent = t; };
+    if (!d) return erro('Informe a data da avaliação.');
+    if (d > hojeISO()) return erro('A data não pode ser futura.');
+    if (!Number.isInteger(av) || av < 0 || av > l.quantidade) return erro(`Avaliados deve ficar entre 0 e ${l.quantidade}.`);
+    if ($('a-op').value === '' || !Number.isInteger(op) || op < 0) return erro('Informe quantos estavam operacionais (pode ser 0).');
+    if (!Number.isInteger(om) || om < 0) return erro('Quantidade com OM inválida.');
+    if (op + om > av) return erro('Operacionais + com OM não pode passar do total avaliado.');
+    if (om > 0 && !$('a-noms').value.trim()) return erro('Informe o número da OM.');
+    if (!$('a-evid').value.trim()) return erro('Informe o link da evidência no SharePoint.');
+    const dados = { data_avaliacao: d, qtd_avaliada: av, qtd_operacional: op, qtd_om: om, numeros_om: om > 0 ? $('a-noms').value.trim() : null,
+      evidencia_url: $('a-evid').value.trim(), observacoes: $('a-obs').value.trim() || null,
+      atualizado_por: quem().nome, atualizado_por_email: quem().email, atualizado_em: agoraISO() };
+    const btn = $('a-salvar'); btn.disabled = true; btn.textContent = 'Salvando...';
+    const { error } = a
+      ? await sb.from('emerg_avaliacoes').update(dados).eq('id', a.id)
+      : await sb.from('emerg_avaliacoes').insert({ ...dados, local_id: l.id, mes: mesSel, registrado_por: quem().nome, registrado_por_email: quem().email });
+    if (error) { btn.disabled = false; btn.textContent = 'Tentar de novo'; return erro('Não salvou: ' + error.message); }
+    fecharModal(); toast(a ? 'Avaliação atualizada' : 'Avaliação registrada'); carregar();
+  };
+  if ($('a-excluir')) $('a-excluir').onclick = async () => {
+    if (!confirm('Excluir esta avaliação? O vencimento volta a ficar pendente.')) return;
+    const { error } = await sb.from('emerg_avaliacoes').delete().eq('id', a.id);
+    if (error) { $('m-erro').textContent = 'Não excluiu: ' + error.message; return; }
+    fecharModal(); toast('Avaliação excluída'); carregar();
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Aba: cadastro de locais
+// ─────────────────────────────────────────────────────────────
+function renderCadastro() {
+  const vis = locaisVisiveis(true);
+  const ativos = vis.filter(l => l.ativo);
+  $('resumo-cad').textContent = `${ativos.length} local(is) ativo(s), ${ativos.reduce((t, l) => t + l.quantidade, 0)} equipamento(s)`;
+  if (!vis.length) { $('tabela-cad').innerHTML = '<div class="vazio">Nenhum local cadastrado. Clique em "Novo local / equipamento".</div>'; return; }
+  const porGer = {};
+  vis.forEach(l => (porGer[l.gerencia_id] = porGer[l.gerencia_id] || []).push(l));
+  const linhas = Object.keys(porGer).map(Number).sort((a, b) => nomeGer(gerPorId(a)).localeCompare(nomeGer(gerPorId(b)))).map(gid =>
+    `<tr class="ger"><td colspan="7">${esc(nomeGer(gerPorId(gid)) || 'Gerência ' + gid)}</td></tr>` +
+    porGer[gid].sort((a, b) => a.local.localeCompare(b.local) || a.tipo.localeCompare(b.tipo)).map(l => `
+      <tr class="${l.ativo ? '' : 'inativo'}">
+        <td>${esc(l.local)}${l.ativo ? '' : ' <span class="tag">inativo</span>'}</td><td>${esc(l.tipo)}</td><td>${esc(l.frequencia.toLowerCase())}</td>
+        <td>${l.quantidade}</td><td>${l.ativo ? (proximoVencimento(l, hojeMes()) ? nomeMesCurto(proximoVencimento(l, hojeMes())) : '—') : '—'}</td>
+        <td style="font-size:12px;color:var(--muted)">${esc(l.atualizado_por || l.criado_por || '')}</td>
+        <td><button class="btn btn-link" onclick="abrirLocal(${l.id})">Editar</button></td>
+      </tr>`).join('')).join('');
+  $('tabela-cad').innerHTML = `<table><thead><tr><th>Local</th><th>Equipamento</th><th>Frequência</th><th>Qtd.</th><th>Próxima avaliação</th><th>Última alteração</th><th></th></tr></thead><tbody>${linhas}</tbody></table>`;
+}
+
+function abrirLocal(id) {
+  const l = id ? locais.find(x => x.id === id) : null;
+  const gers = gerencias.filter(g => gersInd.has(g.id) || g.id === l?.gerencia_id);
+  const listaGer = gers.length ? gers : gerencias;
+  abrirModal(`
+    <h3>${l ? 'Editar local' : 'Novo local / equipamento'}</h3>
+    <p class="desc">Um cadastro por local e tipo de equipamento. Se o mesmo local tiver outro tipo, cadastre de novo.</p>
+    <div class="campo"><label for="c-ger">Gerência (onde conta no IP)</label>
+      <select id="c-ger">${listaGer.map(g => `<option value="${g.id}" ${l?.gerencia_id === g.id ? 'selected' : ''}>${esc(nomeGer(g))}</option>`).join('')}</select></div>
+    <div class="campo"><label for="c-local">Local</label><input id="c-local" value="${esc(l?.local || '')}" placeholder="Ex.: Oficina Automotiva — galpão 2"></div>
+    <div class="linha2">
+      <div class="campo"><label for="c-tipo">Tipo de equipamento</label>
+        <select id="c-tipo">${TIPOS.map(t => `<option value="${esc(t.tipo)}" ${l?.tipo === t.tipo ? 'selected' : ''}>${esc(t.tipo)}</option>`).join('')}</select>
+        <span class="ajuda" id="c-freq"></span></div>
+      <div class="campo"><label for="c-qtd">Quantidade no local</label><input type="number" min="1" id="c-qtd" value="${l?.quantidade ?? 1}"></div>
+    </div>
+    <div class="campo"><label for="c-inicio" id="c-inicio-rot">Mês da primeira avaliação</label><input type="month" id="c-inicio" value="${l?.inicio_mes || hojeMes()}">
+      <span class="ajuda" id="c-inicio-ajuda"></span></div>
+    <div class="campo"><label for="c-obs">Observações</label><textarea id="c-obs">${esc(l?.observacoes || '')}</textarea></div>
+    ${l ? `<div class="campo"><label><input type="checkbox" id="c-ativo" ${l.ativo ? 'checked' : ''}> Ativo (desmarque se o equipamento saiu do local)</label></div>` : ''}
+    <div id="m-erro" class="erro-form"></div>
+    <div class="rodape"><button class="btn btn-sec" onclick="fecharModal()">Voltar</button><button class="btn btn-primario" id="c-salvar">${l ? 'Salvar' : 'Cadastrar'}</button></div>`);
+  const sync = () => {
+    const t = TIPOS.find(x => x.tipo === $('c-tipo').value);
+    $('c-freq').textContent = `${t.aval} ${t.freq.toLowerCase()}`;
+    $('c-inicio-rot').textContent = t.freq === 'MENSAL' ? 'Avaliar a partir de' : 'Mês da próxima avaliação';
+    $('c-inicio-ajuda').textContent = t.freq === 'MENSAL' ? 'Conta todo mês a partir deste.' : t.freq === 'SEMESTRAL' ? 'Depois, a cada 6 meses.' : 'Depois, a cada 12 meses.';
+  };
+  $('c-tipo').onchange = sync; sync();
+  $('c-salvar').onclick = async () => {
+    const t = TIPOS.find(x => x.tipo === $('c-tipo').value);
+    const local = $('c-local').value.trim(), qtd = Number($('c-qtd').value), inicio = $('c-inicio').value;
+    const erro = x => { $('m-erro').textContent = x; };
+    if (!local) return erro('Informe o local.');
+    if (!Number.isInteger(qtd) || qtd < 1) return erro('A quantidade precisa ser pelo menos 1.');
+    if (!/^\d{4}-\d{2}$/.test(inicio)) return erro('Informe o mês.');
+    const gid = Number($('c-ger').value);
+    const dup = locais.find(x => x.id !== l?.id && x.ativo && x.gerencia_id === gid && norm(x.local) === norm(local) && x.tipo === t.tipo);
+    if (dup) return erro('Esse local já tem cadastro desse tipo de equipamento. Edite a quantidade nele.');
+    const dados = { gerencia_id: gid, local, tipo: t.tipo, avaliacao: t.aval, frequencia: t.freq, quantidade: qtd, inicio_mes: inicio,
+      observacoes: $('c-obs').value.trim() || null, ativo: l ? $('c-ativo').checked : true,
+      atualizado_por: quem().nome, atualizado_por_email: quem().email, atualizado_em: agoraISO() };
+    const btn = $('c-salvar'); btn.disabled = true; btn.textContent = 'Salvando...';
+    const { error } = l
+      ? await sb.from('emerg_locais').update(dados).eq('id', l.id)
+      : await sb.from('emerg_locais').insert({ ...dados, criado_por: quem().nome, criado_por_email: quem().email });
+    if (error) { btn.disabled = false; btn.textContent = 'Tentar de novo'; return erro('Não salvou: ' + error.message); }
+    fecharModal(); toast(l ? 'Cadastro atualizado' : 'Local cadastrado'); carregar();
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Aba: visão da safra (o que vai para o IP)
+// ─────────────────────────────────────────────────────────────
+function renderSafra() {
+  const meses = mesesDaSafra(safraAtual());
+  const vis = locaisVisiveis();
+  const gids = [...new Set(vis.map(l => l.gerencia_id))].sort((a, b) => nomeGer(gerPorId(a)).localeCompare(nomeGer(gerPorId(b))));
+  if (!gids.length) { $('tabela-safra').innerHTML = '<div class="vazio">Nenhum local cadastrado.</div>'; return; }
+  const linhas = gids.map(gid => {
+    const ls = vis.filter(l => l.gerencia_id === gid);
+    const cels = meses.map(m => {
+      const venc = ls.filter(l => vence(l, m.ym));
+      if (!venc.length) return '<td class="v-zero">—</td>';
+      const p = venc.reduce((t, l) => t + l.quantidade, 0), r = venc.reduce((t, l) => t + contaIP(l, avalDe(l, m.ym)), 0);
+      const futuro = m.ym > hojeMes();
+      return `<td class="${futuro ? 'v-zero' : r >= p ? 'v-ok' : 'v-nok'}">${futuro ? p + ' prev.' : r + ' de ' + p}</td>`;
+    }).join('');
+    return `<tr><td>${esc(nomeGer(gerPorId(gid)))}</td>${cels}</tr>`;
+  }).join('');
+  $('tabela-safra').innerHTML = `<table><thead><tr><th>Gerência</th>${meses.map(m => `<th>${m.abr}/${String(m.ano).slice(2)}</th>`).join('')}</tr></thead><tbody>${linhas}</tbody></table>`;
+}
+
+function exportarCadastro() {
+  const vis = locaisVisiveis(true);
+  const ws = XLSX.utils.aoa_to_sheet([['Gerência', 'Local', 'Equipamento', 'Avaliação', 'Frequência', 'Quantidade', 'Início / próxima', 'Ativo', 'Observações'],
+    ...vis.map(l => [nomeGer(gerPorId(l.gerencia_id)), l.local, l.tipo, l.avaliacao, l.frequencia, l.quantidade, l.inicio_mes, l.ativo ? 'Sim' : 'Não', l.observacoes || ''])]);
+  ws['!cols'] = [{ wch: 42 }, { wch: 34 }, { wch: 28 }, { wch: 10 }, { wch: 11 }, { wch: 10 }, { wch: 12 }, { wch: 6 }, { wch: 40 }];
+  const av = avaliacoes.map(a => { const l = locais.find(x => x.id === a.local_id) || {}; return [nomeGer(gerPorId(l.gerencia_id)), l.local, l.tipo, a.mes, fmtData(a.data_avaliacao), l.quantidade, a.qtd_avaliada, a.qtd_operacional, a.qtd_om, a.qtd_avaliada - a.qtd_operacional - a.qtd_om, a.numeros_om || '', a.evidencia_url || '', a.registrado_por || '']; });
+  const ws2 = XLSX.utils.aoa_to_sheet([['Gerência', 'Local', 'Equipamento', 'Mês', 'Data', 'Qtd. cadastrada', 'Avaliados', 'Operacionais', 'Com OM', 'Sem OM', 'Nº OM', 'Evidência', 'Registrado por'], ...av]);
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Cadastro'); XLSX.utils.book_append_sheet(wb, ws2, 'Avaliações');
+  XLSX.writeFile(wb, 'Equipamentos_Emergencia.xlsx');
+}
+
+function abrirModal(html) {
+  $('modal-raiz').innerHTML = `<div class="fundo-modal" onclick="if(event.target===this)fecharModal()"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
+  const p = $('modal-raiz').querySelector('input:not([disabled]),select,textarea'); if (p) p.focus();
+}
+function fecharModal() { $('modal-raiz').innerHTML = ''; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharModal(); });
+
+init();
+</script>
+</body>
+</html>
