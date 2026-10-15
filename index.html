@@ -101,6 +101,10 @@ main{max-width:1240px;margin:0 auto;padding:20px 24px 60px}
 .linha2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .linha3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 @media (max-width:560px){.linha2,.linha3{grid-template-columns:1fr}}
+.aviso-om{background:var(--aviso-bg);border:1px solid var(--ambar);color:#6b4b00;border-radius:8px;padding:12px 16px;font-size:14px;margin-bottom:18px}
+.aviso-om ul{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.aviso-om li{display:flex;gap:12px;align-items:center;justify-content:space-between;background:#fff;border-radius:6px;padding:6px 10px}
+.bloco-reprov{background:var(--aviso-bg);border:1px solid var(--ambar);border-radius:8px;padding:12px 14px;margin-bottom:14px}
 .calc{background:var(--fundo);border-radius:6px;padding:8px 12px;font-size:14px;margin:-4px 0 14px}
 .info-reg{background:var(--fundo);border-radius:6px;padding:8px 12px;font-size:13px;color:var(--muted);margin-bottom:14px}
 .modal .rodape{display:flex;justify-content:flex-end;gap:8px;margin-top:6px;flex-wrap:wrap}
@@ -136,6 +140,7 @@ main{max-width:1240px;margin:0 auto;padding:20px 24px 60px}
       <h2 id="titulo-mes"></h2>
       <span class="resumo" id="resumo-mes"></span>
     </div>
+    <div id="pend-om"></div>
     <div id="lista-aval"><div class="carregando">Carregando...</div></div>
   </section>
 
@@ -151,7 +156,7 @@ main{max-width:1240px;margin:0 auto;padding:20px 24px 60px}
   </section>
 
   <section id="aba-safra" class="hidden">
-    <p class="legenda">É assim que o Hub grava no IP. Cada célula mostra <b>operacionais ou com OM aberta de equipamentos com avaliação vencendo no mês</b>. "—" = nada vence no mês (0 de 0). Monitoramento de câmera não entra no IP.</p>
+    <p class="legenda">É assim que o Hub grava no IP. Cada célula mostra <b>operacionais ou com OS aberta de equipamentos com avaliação vencendo no mês</b>. "—" = nada vence no mês (0 de 0). Monitoramento de câmera não entra no IP.</p>
     <div class="tabela" id="tabela-safra"></div>
   </section>
 </main>
@@ -225,6 +230,8 @@ function proximoVencimento(l, aPartirDe) {
 }
 const avalDe = (l, ym) => avaliacoes.find(a => a.local_id === l.id && a.mes === ym);
 const contaIP = (l, a) => a ? Math.min(a.qtd_operacional + a.qtd_om, l.quantidade) : 0;
+// Reprovados no teste que a área ainda não informou a OS
+const semOM = a => a ? Math.max(0, a.qtd_avaliada - a.qtd_operacional - a.qtd_om) : 0;
 
 // ─────────────────────────────────────────────────────────────
 // Login (pelo portal)
@@ -320,7 +327,18 @@ function renderRegua() {
 }
 function selMes(ym) { mesSel = ym; renderRegua(); renderAval(); }
 
+function renderPendOM() {
+  const pend = avaliacoes.filter(a => semOM(a) > 0).map(a => ({ a, l: locais.find(x => x.id === a.local_id) }))
+    .filter(x => x.l && locaisVisiveis(true).includes(x.l)).sort((x, y) => x.a.mes.localeCompare(y.a.mes));
+  if (!pend.length) { $('pend-om').innerHTML = ''; return; }
+  const total = pend.reduce((t, x) => t + semOM(x.a), 0);
+  $('pend-om').innerHTML = `<div class="aviso-om"><b>⚠️ ${total} equipamento(s) reprovado(s) no teste aguardando a OS da área.</b> Enquanto a OS não for informada, não contam no IP.
+    <ul>${pend.map(x => `<li><span>${nomeMesCurto(x.a.mes)} · ${esc(nomeGer(gerPorId(x.l.gerencia_id)))} · ${esc(x.l.local)} — ${esc(x.l.tipo)}: <b>${semOM(x.a)}</b> sem OS${x.a.area_avisada_em ? ' · área avisada em ' + fmtData(x.a.area_avisada_em) : ' · <i>área ainda não avisada</i>'}</span>
+      <button class="btn btn-sec" onclick="informarOM(${x.a.id})">Informar OS</button></li>`).join('')}</ul></div>`;
+}
+
 function renderAval() {
+  renderPendOM();
   $('titulo-mes').textContent = nomeMesLongo(mesSel);
   const venc = locaisVisiveis().filter(l => vence(l, mesSel));
   if (!locais.length) { $('resumo-mes').textContent = ''; $('lista-aval').innerHTML = '<div class="vazio">Nenhum local cadastrado ainda. Comece pela aba <b>Cadastro de locais</b>.</div>'; return; }
@@ -336,10 +354,10 @@ function renderAval() {
       const a = avalDe(l, mesSel);
       let cls = '', res = '';
       if (a) {
-        const c = contaIP(l, a), semOm = a.qtd_avaliada - a.qtd_operacional - a.qtd_om, naoAval = l.quantidade - a.qtd_avaliada;
+        const c = contaIP(l, a), semOm = semOM(a), naoAval = l.quantidade - a.qtd_avaliada;
         cls = c >= l.quantidade ? 'ok' : 'nok';
-        const det = [semOm > 0 ? semOm + ' sem OM' : '', naoAval > 0 ? naoAval + ' não avaliado(s)' : '', a.qtd_om ? a.qtd_om + ' com OM' : ''].filter(Boolean).join(' · ');
-        res = `<span class="res ${cls}">${c} de ${l.quantidade}<small>${esc(det || 'todos operacionais')}</small></span>`;
+        const det = [semOm > 0 ? semOm + ' aguardando OS da área' : '', naoAval > 0 ? naoAval + ' não avaliado(s)' : '', a.qtd_om ? a.qtd_om + ' com OS' : ''].filter(Boolean).join(' · ');
+        res = `<span class="res ${cls}">${c} de ${l.quantidade}<small>${esc(det || 'todos passaram no teste')}</small>${semOm > 0 ? `<button class="btn btn-sec" style="margin-top:6px;padding:4px 10px;font-size:13px" onclick="event.stopPropagation();informarOM(${a.id})">Informar OS</button>` : ''}</span>`;
       } else {
         const atras = mesSel < hojeMes();
         cls = atras ? 'atras' : '';
@@ -368,12 +386,18 @@ function abrirAvaliacao(localId) {
       <div class="campo"><label for="a-data">Data da avaliação</label><input type="date" id="a-data" max="${hojeISO()}" min="${meses[0].ym}-01" value="${a?.data_avaliacao || (mesSel === hojeMes() ? hojeISO() : '')}"></div>
       <div class="campo"><label for="a-aval">Quantos foram avaliados</label><input type="number" min="0" max="${l.quantidade}" id="a-aval" value="${a?.qtd_avaliada ?? l.quantidade}"></div>
     </div>
-    <div class="linha3">
-      <div class="campo"><label for="a-op">Operacionais</label><input type="number" min="0" id="a-op" value="${a?.qtd_operacional ?? ''}"></div>
-      <div class="campo"><label for="a-om">Não operacionais com OM aberta</label><input type="number" min="0" id="a-om" value="${a?.qtd_om ?? 0}"></div>
-      <div class="campo"><label>Não operacionais sem OM</label><input type="text" id="a-semom" disabled></div>
+    <div class="linha2">
+      <div class="campo"><label for="a-op">Passaram no teste (operacionais)</label><input type="number" min="0" id="a-op" value="${a?.qtd_operacional ?? ''}"></div>
+      <div class="campo"><label>Não passaram no teste</label><input type="text" id="a-reprov" disabled></div>
     </div>
-    <div class="campo" id="campo-om"><label for="a-noms">Número(s) da(s) OM</label><input id="a-noms" value="${esc(a?.numeros_om || '')}" placeholder="Ex.: 452311, 452318"></div>
+    <div id="bloco-reprov" class="bloco-reprov">
+      <p style="margin:0 0 10px;font-size:13px">Avise a área responsável: ela é quem abre a ordem de serviço (OS). Enquanto a OS não for informada, esses equipamentos <b>não contam no IP</b>.</p>
+      <div class="linha2">
+        <div class="campo"><label for="a-avisada">Área avisada em</label><input type="date" id="a-avisada" max="${hojeISO()}" value="${a?.area_avisada_em || ''}"></div>
+        <div class="campo"><label for="a-om">Quantos já têm OS aberta</label><input type="number" min="0" id="a-om" value="${a?.qtd_om ?? 0}"></div>
+      </div>
+      <div class="campo" id="campo-om"><label for="a-noms">Número(s) da(s) OS</label><input id="a-noms" value="${esc(a?.numeros_om || '')}" placeholder="Ex.: 452311, 452318"></div>
+    </div>
     <div class="calc" id="a-calc"></div>
     <div class="campo"><label for="a-evid">Link da evidência no SharePoint</label><input type="url" id="a-evid" value="${esc(a?.evidencia_url || '')}" placeholder="https://suaempresa.sharepoint.com/..."></div>
     <div class="campo"><label for="a-obs">Observações</label><textarea id="a-obs">${esc(a?.observacoes || '')}</textarea></div>
@@ -384,26 +408,31 @@ function abrirAvaliacao(localId) {
       <button class="btn btn-primario" id="a-salvar">${a ? 'Salvar alterações' : 'Registrar'}</button>
     </div>`);
   const calc = () => {
-    const av = Number($('a-aval').value) || 0, op = Number($('a-op').value) || 0, om = Number($('a-om').value) || 0;
-    const sem = av - op - om;
-    $('a-semom').value = sem >= 0 ? sem : '—';
+    const av = Number($('a-aval').value) || 0, op = $('a-op').value === '' ? av : (Number($('a-op').value) || 0), om = Number($('a-om').value) || 0;
+    const reprov = Math.max(0, av - op), sem = Math.max(0, reprov - om);
+    $('a-reprov').value = $('a-op').value === '' ? '—' : reprov;
+    $('bloco-reprov').style.display = reprov > 0 && $('a-op').value !== '' ? '' : 'none';
     $('campo-om').style.display = om > 0 ? '' : 'none';
-    const c = Math.min(op + om, l.quantidade);
-    $('a-calc').innerHTML = `Conta no IP: <b>${c} de ${l.quantidade}</b>` + (l.quantidade - av > 0 ? ` · ${l.quantidade - av} não avaliado(s) contam como não realizados` : '') + (sem > 0 ? ` · ${sem} sem OM não contam` : '');
+    const c = Math.min(op + Math.min(om, reprov), l.quantidade);
+    $('a-calc').innerHTML = `Conta no IP: <b>${c} de ${l.quantidade}</b>` + (l.quantidade - av > 0 ? ` · ${l.quantidade - av} não avaliado(s) contam como não realizados` : '') + (sem > 0 ? ` · ${sem} aguardando OS da área não contam` : '');
   };
   ['a-aval', 'a-op', 'a-om'].forEach(k => $(k).oninput = calc); calc();
   $('a-salvar').onclick = async () => {
-    const d = $('a-data').value, av = Number($('a-aval').value), op = Number($('a-op').value), om = Number($('a-om').value) || 0;
+    const d = $('a-data').value, av = Number($('a-aval').value), op = Number($('a-op').value), reprovados = Math.max(0, av - op);
+    const om = reprovados > 0 ? (Number($('a-om').value) || 0) : 0;
     const erro = t => { $('m-erro').textContent = t; };
     if (!d) return erro('Informe a data da avaliação.');
     if (d > hojeISO()) return erro('A data não pode ser futura.');
     if (!Number.isInteger(av) || av < 0 || av > l.quantidade) return erro(`Avaliados deve ficar entre 0 e ${l.quantidade}.`);
     if ($('a-op').value === '' || !Number.isInteger(op) || op < 0) return erro('Informe quantos estavam operacionais (pode ser 0).');
-    if (!Number.isInteger(om) || om < 0) return erro('Quantidade com OM inválida.');
-    if (op + om > av) return erro('Operacionais + com OM não pode passar do total avaliado.');
-    if (om > 0 && !$('a-noms').value.trim()) return erro('Informe o número da OM.');
+    if (!Number.isInteger(om) || om < 0) return erro('Quantidade com OS inválida.');
+    if (op > av) return erro('Os que passaram no teste não podem ser mais que os avaliados.');
+    if (om > reprovados) return erro('Os com OS não podem ser mais que os que não passaram no teste.');
+    if (om > 0 && !$('a-noms').value.trim()) return erro('Informe o número da OS.');
     if (!$('a-evid').value.trim()) return erro('Informe o link da evidência no SharePoint.');
     const dados = { data_avaliacao: d, qtd_avaliada: av, qtd_operacional: op, qtd_om: om, numeros_om: om > 0 ? $('a-noms').value.trim() : null,
+      area_avisada_em: reprovados > 0 ? ($('a-avisada').value || null) : null,
+      ...(om > (a?.qtd_om || 0) ? { om_informada_em: agoraISO(), om_informada_por: quem().nome } : {}),
       evidencia_url: $('a-evid').value.trim(), observacoes: $('a-obs').value.trim() || null,
       atualizado_por: quem().nome, atualizado_por_email: quem().email, atualizado_em: agoraISO() };
     const btn = $('a-salvar'); btn.disabled = true; btn.textContent = 'Salvando...';
@@ -418,6 +447,34 @@ function abrirAvaliacao(localId) {
     const { error } = await sb.from('emerg_avaliacoes').delete().eq('id', a.id);
     if (error) { $('m-erro').textContent = 'Não excluiu: ' + error.message; return; }
     fecharModal(); toast('Avaliação excluída'); carregar();
+  };
+}
+
+// Informar a OS aberta pela área (depois da avaliação)
+function informarOM(avalId) {
+  const a = avaliacoes.find(x => x.id === avalId); if (!a) return;
+  const l = locais.find(x => x.id === a.local_id) || {};
+  const pend = semOM(a);
+  abrirModal(`
+    <h3>Informar OS da área</h3>
+    <p class="desc">${esc(l.local)} — ${esc(l.tipo)}<br>${esc(nomeGer(gerPorId(l.gerencia_id)))} · avaliação de ${nomeMesLongo(a.mes).toLowerCase()} · <b>${pend}</b> equipamento(s) aguardando OS</p>
+    ${a.numeros_om ? `<div class="info-reg">OS já informada(s): ${esc(a.numeros_om)}</div>` : ''}
+    <div class="linha2">
+      <div class="campo"><label for="o-num">Número(s) da(s) OS</label><input id="o-num" placeholder="Ex.: 452311, 452318"></div>
+      <div class="campo"><label for="o-qtd">Quantos equipamentos essa(s) OS cobre(m)</label><input type="number" min="1" max="${pend}" id="o-qtd" value="${pend}"></div>
+    </div>
+    <div class="campo"><label for="o-avisada">Área avisada em</label><input type="date" id="o-avisada" max="${hojeISO()}" value="${a.area_avisada_em || ''}"></div>
+    <div id="m-erro" class="erro-form"></div>
+    <div class="rodape"><button class="btn btn-sec" onclick="fecharModal()">Voltar</button><button class="btn btn-primario" id="o-salvar">Salvar OS</button></div>`);
+  $('o-salvar').onclick = async () => {
+    const num = $('o-num').value.trim(), qtd = Number($('o-qtd').value);
+    if (!num) { $('m-erro').textContent = 'Informe o número da OS.'; return; }
+    if (!Number.isInteger(qtd) || qtd < 1 || qtd > pend) { $('m-erro').textContent = `Quantidade deve ficar entre 1 e ${pend}.`; return; }
+    const dados = { qtd_om: a.qtd_om + qtd, numeros_om: [a.numeros_om, num].filter(Boolean).join(', '), area_avisada_em: $('o-avisada').value || a.area_avisada_em || null,
+      om_informada_em: agoraISO(), om_informada_por: quem().nome, atualizado_por: quem().nome, atualizado_por_email: quem().email, atualizado_em: agoraISO() };
+    const { error } = await sb.from('emerg_avaliacoes').update(dados).eq('id', a.id);
+    if (error) { $('m-erro').textContent = 'Não salvou: ' + error.message + (String(error.message).includes('area_avisada') || String(error.message).includes('om_informada') ? ' (rode o SQL de atualização da tabela)' : ''); return; }
+    fecharModal(); toast('OS registrada: o equipamento passa a contar no IP'); carregar();
   };
 }
 
@@ -521,8 +578,8 @@ function exportarCadastro() {
   const ws = XLSX.utils.aoa_to_sheet([['Gerência', 'Local', 'Equipamento', 'Avaliação', 'Frequência', 'Quantidade', 'Início / próxima', 'Ativo', 'Observações'],
     ...vis.map(l => [nomeGer(gerPorId(l.gerencia_id)), l.local, l.tipo, l.avaliacao, l.frequencia, l.quantidade, l.inicio_mes, l.ativo ? 'Sim' : 'Não', l.observacoes || ''])]);
   ws['!cols'] = [{ wch: 42 }, { wch: 34 }, { wch: 28 }, { wch: 10 }, { wch: 11 }, { wch: 10 }, { wch: 12 }, { wch: 6 }, { wch: 40 }];
-  const av = avaliacoes.map(a => { const l = locais.find(x => x.id === a.local_id) || {}; return [nomeGer(gerPorId(l.gerencia_id)), l.local, l.tipo, a.mes, fmtData(a.data_avaliacao), l.quantidade, a.qtd_avaliada, a.qtd_operacional, a.qtd_om, a.qtd_avaliada - a.qtd_operacional - a.qtd_om, a.numeros_om || '', a.evidencia_url || '', a.registrado_por || '']; });
-  const ws2 = XLSX.utils.aoa_to_sheet([['Gerência', 'Local', 'Equipamento', 'Mês', 'Data', 'Qtd. cadastrada', 'Avaliados', 'Operacionais', 'Com OM', 'Sem OM', 'Nº OM', 'Evidência', 'Registrado por'], ...av]);
+  const av = avaliacoes.map(a => { const l = locais.find(x => x.id === a.local_id) || {}; return [nomeGer(gerPorId(l.gerencia_id)), l.local, l.tipo, a.mes, fmtData(a.data_avaliacao), l.quantidade, a.qtd_avaliada, a.qtd_operacional, a.qtd_om, semOM(a), a.numeros_om || '', fmtData(a.area_avisada_em), a.evidencia_url || '', a.registrado_por || '']; });
+  const ws2 = XLSX.utils.aoa_to_sheet([['Gerência', 'Local', 'Equipamento', 'Mês', 'Data', 'Qtd. cadastrada', 'Avaliados', 'Passaram no teste', 'Com OS', 'Aguardando OS', 'Nº OS', 'Área avisada em', 'Evidência', 'Registrado por'], ...av]);
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Cadastro'); XLSX.utils.book_append_sheet(wb, ws2, 'Avaliações');
   XLSX.writeFile(wb, 'Equipamentos_Emergencia.xlsx');
 }
